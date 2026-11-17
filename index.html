@@ -119,6 +119,12 @@
 
   .panel{background:rgba(255,255,255,.88); border:3px solid var(--ink); border-radius:var(--radius); box-shadow:var(--shadow); backdrop-filter:blur(2px);}
 
+  /* 全局返回关卡按钮 */
+  #backBtn{position:fixed; left:14px; bottom:18px; z-index:60; display:none; align-items:center; gap:6px;
+    font-family:inherit; font-size:14px; font-weight:800; padding:10px 14px; cursor:pointer;
+    border:3px solid var(--ink); border-radius:999px; background:#fffdf5; color:var(--ink);
+    box-shadow:var(--shadow-sm);}
+  #backBtn:active{transform:translateY(3px); box-shadow:0 1px 0 rgba(59,45,62,.16);}
   .screen{display:none;}
   .screen.active{display:block; animation:pop .35s ease both;}
 
@@ -238,8 +244,12 @@
     font-size:21px; cursor:pointer; box-shadow:var(--shadow-sm); transition:transform .08s, background .12s; min-height:66px;
     display:flex; align-items:center; justify-content:center; text-align:center;}
   .opt:active{transform:translateY(3px); box-shadow:0 1px 0 rgba(59,45,62,.16);}
-  .opt.emoji-opt{font-size:42px;}
+  .opt.emoji-opt{flex-direction:column; gap:6px; font-size:34px; padding:14px 8px;}
   .opt.hanzi-opt{font-family:"ZCOOL KuaiLe",sans-serif; font-size:34px; letter-spacing:2px;}
+  .opt .opt-e{font-size:34px; line-height:1;}
+  .opt .opt-t{font-family:"ZCOOL KuaiLe",sans-serif; font-size:22px; letter-spacing:1px; line-height:1.2;}
+  .opt.hanzi-opt .opt-e{font-size:26px;}
+  .opt.hanzi-opt .opt-t{font-size:31px; letter-spacing:2px;}
   .opt.pinyin-opt{font-family:"Baloo 2",sans-serif; font-size:23px; letter-spacing:.5px;}
   .opt.correct{background:#bff0c6; border-color:#3f9d52; animation:pop .3s ease both;}
   .opt.wrong{background:#ffd2d2; border-color:#d94f4f; animation:shake .4s ease;}
@@ -447,9 +457,6 @@
       </div>
       <div style="text-align:center; margin:4px 0 16px;"><span class="shop-balance">⭐ <b class="b" id="shopBalance">0</b> 颗星星</span></div>
       <div class="shop-grid" id="shopGrid"></div>
-      <div style="display:flex; justify-content:center; margin-top:16px;">
-        <button class="btn ghost small" onclick="goMap()">🗺️ 回关卡地图</button>
-      </div>
     </section>
 
     <!-- 我的鱼缸 -->
@@ -475,7 +482,6 @@
       </div>
       <div class="aqua-hint">👆 点点海洋朋友和它们玩；🍤 喂饱它们会更开心！</div>
       <div style="display:flex; gap:10px; justify-content:center; margin-top:14px; flex-wrap:wrap;">
-        <button class="btn ghost small" onclick="goMap()">🗺️ 回关卡地图</button>
         <button class="btn blue small" onclick="goShop()">🏪 去星星商城</button>
       </div>
     </section>
@@ -491,6 +497,8 @@
         <div class="btns" id="rBtns"></div>
       </div>
     </section>
+
+    <button id="backBtn" onclick="goMap()" aria-label="返回关卡地图">🗺️ 回关卡</button>
 
     <div class="foot">
       拼音为「台罗拼音」仅作学习参考 · 声音为浏览器占位 · <button onclick="resetProgress()">清空进度重来</button>
@@ -668,6 +676,8 @@ function show(name){
   var s = document.querySelectorAll(".screen");
   for(var i=0;i<s.length;i++){ s[i].classList.remove("active"); }
   $(name).classList.add("active");
+  var bb = $("backBtn");
+  if(bb){ bb.style.display = (name === "home" || name === "map") ? "none" : "flex"; }
   window.scrollTo(0,0);
 }
 function updateStarsPill(){ $("totalStars").textContent = balance(); }
@@ -966,15 +976,15 @@ function buildQuestions(words){
     var opts, prompt, cls;
     if(type === "read"){          // 看台罗 → 选汉字（认读音）
       prompt = '<div class="q-romaji">'+w.p+'</div><div class="q-sub">这个读音，是哪个词？</div>';
-      opts = [w.h].concat(pick(others,3).map(function(o){return o.h;}));
+      opts = [{h:w.h, e:w.e}].concat(pick(others,3).map(function(o){return {h:o.h, e:o.e};}));
       cls = "hanzi-opt";
     } else if(type === "recall"){ // 看汉字+图 → 选台罗（回忆读音）
       prompt = '<div class="q-word">'+w.h+'</div><div class="q-emoji">'+w.e+'</div><div class="q-sub">选出对的台罗拼音</div>';
       opts = [w.p].concat(pick(others,3).map(function(o){return o.p;}));
       cls = "pinyin-opt";
     } else {                       // 看台罗 → 选图（认读音，低龄友好）
-      prompt = '<div class="q-romaji">'+w.p+'</div><div class="q-sub">这个读音，选对的图</div>';
-      opts = [w.e].concat(pick(others,3).map(function(o){return o.e;}));
+      prompt = '<div class="q-romaji">'+w.p+'</div><div class="q-sub">这个读音，是哪个词？（看图选词）</div>';
+      opts = [{h:w.h, e:w.e}].concat(pick(others,3).map(function(o){return {h:o.h, e:o.e};}));
       cls = "emoji-opt";
     }
     var order = shuffle([0,1,2,3]);
@@ -995,7 +1005,13 @@ function renderQuestion(){
   $("qPrompt").innerHTML = '<button class="q-speaker" onclick="speakQuizWord()">🔊 听发音</button>' + q.prompt;
   var html = "";
   q.options.forEach(function(o,i){
-    html += '<button class="opt '+q.cls+'" onclick="answer('+i+')">'+o+'</button>';
+    var inner;
+    if(o && typeof o === "object"){
+      inner = '<span class="opt-e">'+o.e+'</span><span class="opt-t">'+o.h+'</span>';
+    } else {
+      inner = o;
+    }
+    html += '<button class="opt '+q.cls+'" onclick="answer('+i+')">'+inner+'</button>';
   });
   $("qOpts").innerHTML = html;
   var bar = "";
@@ -1059,7 +1075,6 @@ function finishLevel(){
   } else {
     btns += '<button class="btn green big" onclick="goMap()">🏁 全部通关，看地图</button>';
   }
-  btns += '<button class="btn ghost small" onclick="goMap()">🗺️ 回关卡地图</button>';
   $("rBtns").innerHTML = btns;
 
   show("result");
